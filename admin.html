@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Admin - Kelola Produk</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Admin Produk</h1>
+    <span style="width:34px;"></span>
+  </div>
+
+  <div class="content">
+    <div id="loginBox">
+      <div class="form-group">
+        <label>Token Admin</label>
+        <input type="password" id="adminToken" placeholder="Masukkan admin token (lihat .env)" />
+      </div>
+      <button class="btn btn-primary" id="loginBtn">Masuk</button>
+    </div>
+
+    <div id="adminPanel" style="display:none;">
+      <div class="section-title">Tambah Produk Baru</div>
+      <div class="form-group"><label>Nama</label><input type="text" id="newName" /></div>
+      <div class="form-group"><label>Harga (Rp)</label><input type="number" id="newPrice" /></div>
+      <div class="form-group"><label>Stok</label><input type="number" id="newStock" /></div>
+      <div class="form-group"><label>Emoji Ikon</label><input type="text" id="newImage" placeholder="🛍️" /></div>
+      <div class="form-group"><label>Deskripsi</label><textarea id="newDesc"></textarea></div>
+      <button class="btn btn-primary" id="addBtn">Tambah Produk</button>
+
+      <div class="section-title">Daftar Produk</div>
+      <div id="adminProductList"></div>
+    </div>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/api.js"></script>
+<script>
+  const TOKEN_KEY = 'ecommerce_qris_admin_token';
+
+  function getToken() {
+    return sessionStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  async function tryLogin() {
+    const token = document.getElementById('adminToken').value.trim();
+    if (!token) return;
+    // Uji token dengan mencoba update produk fiktif; jika 401 berarti salah.
+    try {
+      await fetch('/api/products/__test__', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-admin-token': token },
+        body: JSON.stringify({})
+      }).then(async (res) => {
+        if (res.status === 401) throw new Error('Token salah');
+      });
+      sessionStorage.setItem(TOKEN_KEY, token);
+      document.getElementById('loginBox').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+      loadAdminProducts();
+    } catch (err) {
+      showToast('Token admin salah');
+    }
+  }
+
+  document.getElementById('loginBtn').addEventListener('click', tryLogin);
+
+  async function loadAdminProducts() {
+    const list = document.getElementById('adminProductList');
+    list.innerHTML = 'Memuat...';
+    try {
+      const { data } = await Api.getProducts();
+      if (!data.length) {
+        list.innerHTML = '<div class="empty-state">Belum ada produk.</div>';
+        return;
+      }
+      list.innerHTML = data.map((p) => `
+        <div class="admin-product-row">
+          <div style="font-size:28px;">${p.image}</div>
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="meta">${formatRupiah(p.price)} • Stok: ${p.stock}</div>
+          </div>
+          <div class="admin-actions">
+            <button style="background:#fee2e2;color:#991b1b;" data-delete="${p.id}">Hapus</button>
+          </div>
+        </div>
+      `).join('');
+      list.querySelectorAll('[data-delete]').forEach((btn) => {
+        btn.onclick = async () => {
+          if (!confirm('Yakin ingin menghapus produk ini?')) return;
+          try {
+            await Api.deleteProduct(btn.dataset.delete, getToken());
+            showToast('Produk dihapus');
+            loadAdminProducts();
+          } catch (err) {
+            showToast(err.message);
+          }
+        };
+      });
+    } catch (err) {
+      list.innerHTML = `<div class="empty-state">Gagal memuat: ${err.message}</div>`;
+    }
+  }
+
+  document.getElementById('addBtn').addEventListener('click', async () => {
+    const name = document.getElementById('newName').value.trim();
+    const price = document.getElementById('newPrice').value;
+    const stock = document.getElementById('newStock').value;
+    const image = document.getElementById('newImage').value.trim() || '🛍️';
+    const description = document.getElementById('newDesc').value.trim();
+
+    if (!name || !price || !stock) {
+      showToast('Lengkapi nama, harga, dan stok');
+      return;
+    }
+    try {
+      await Api.addProduct({ name, price, stock, image, description }, getToken());
+      showToast('Produk ditambahkan');
+      document.getElementById('newName').value = '';
+      document.getElementById('newPrice').value = '';
+      document.getElementById('newStock').value = '';
+      document.getElementById('newImage').value = '';
+      document.getElementById('newDesc').value = '';
+      loadAdminProducts();
+    } catch (err) {
+      showToast(err.message);
+    }
+  });
+
+  // Auto-login jika token sudah tersimpan di sesi ini
+  if (getToken()) {
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('adminPanel').style.display = 'block';
+    loadAdminProducts();
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Pembayaran QRIS</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Pembayaran QRIS</h1>
+    <span style="width:34px;"></span>
+  </div>
+
+  <div class="content" id="paymentContent">
+    <p style="text-align:center; color:#6b7280;">Menyiapkan pembayaran...</p>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/api.js"></script>
+<script>
+  const orderId = getQueryParam('orderId');
+  let pollTimer = null;
+  let countdownTimer = null;
+
+  function statusLabel(status) {
+    return {
+      pending_payment: 'Menunggu Pembayaran',
+      paid: 'Pembayaran Berhasil',
+      expired: 'Kedaluwarsa',
+      cancelled: 'Dibatalkan'
+    }[status] || status;
+  }
+
+  function renderPaid(order) {
+    document.getElementById('paymentContent').innerHTML = `
+      <div class="qr-box">
+        <div style="font-size:60px;">✅</div>
+        <div class="qr-amount">${formatRupiah(order.total)}</div>
+        <span class="status-badge status-paid">${statusLabel(order.status)}</span>
+      </div>
+      <p style="text-align:center; color:#6b7280; font-size:13px;">Terima kasih, ${order.customer.name}! Pesananmu sedang diproses.</p>
+      <a href="index.html" class="btn btn-primary" style="margin-top:16px;">Kembali ke Toko</a>
+    `;
+    clearInterval(pollTimer);
+    clearInterval(countdownTimer);
+  }
+
+  function renderExpired() {
+    document.getElementById('paymentContent').innerHTML = `
+      <div class="qr-box">
+        <div style="font-size:60px;">⌛</div>
+        <span class="status-badge status-expired">Kedaluwarsa</span>
+      </div>
+      <p style="text-align:center; color:#6b7280; font-size:13px;">Waktu pembayaran habis. Silakan buat pesanan baru.</p>
+      <a href="index.html" class="btn btn-outline" style="margin-top:16px;">Kembali ke Toko</a>
+    `;
+    clearInterval(pollTimer);
+    clearInterval(countdownTimer);
+  }
+
+  function renderPending(order) {
+    const mode = order.payment.mode;
+    const demoNotice = mode === 'sandbox' ? `
+      <div class="demo-notice">
+        ⚠️ Mode <b>sandbox</b>: QR ini adalah simulasi karena belum terhubung ke akun payment gateway (Midtrans/Xendit).
+        Gunakan tombol di bawah untuk mensimulasikan pembayaran berhasil.
+      </div>
+    ` : '';
+
+    document.getElementById('paymentContent').innerHTML = `
+      ${demoNotice}
+      <div class="qr-box">
+        <img src="${order.payment.qrDataUrl}" alt="QR Code QRIS" />
+        <div class="qr-amount">${formatRupiah(order.total)}</div>
+        <span class="status-badge status-pending_payment">${statusLabel(order.status)}</span>
+        <div class="qr-timer" id="countdown" style="margin-top:8px;"></div>
+      </div>
+      <p style="text-align:center; color:#6b7280; font-size:13px;">
+        Scan QR di atas menggunakan aplikasi e-wallet kamu (GoPay, OVO, Dana, ShopeePay, dll).<br/>
+        Halaman ini akan otomatis update setelah pembayaran diterima.
+      </p>
+      ${mode === 'sandbox' ? `
+        <button class="btn btn-primary" id="simulateBtn" style="margin-top:16px;">
+          Simulasikan Pembayaran Berhasil (Demo)
+        </button>
+      ` : ''}
+    `;
+
+    if (mode === 'sandbox') {
+      document.getElementById('simulateBtn').addEventListener('click', async () => {
+        try {
+          await Api.simulatePayment(orderId);
+          checkStatus();
+        } catch (err) {
+          showToast(err.message);
+        }
+      });
+    }
+
+    startCountdown(order.payment.expiresAt);
+  }
+
+  function startCountdown(expiresAt) {
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      const el = document.getElementById('countdown');
+      if (!el) return;
+      const diff = new Date(expiresAt).getTime() - Date.now();
+      if (diff <= 0) {
+        el.textContent = 'Waktu habis';
+        clearInterval(countdownTimer);
+        return;
+      }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      el.textContent = `Bayar dalam ${m}:${s.toString().padStart(2, '0')}`;
+    }, 1000);
+  }
+
+  async function checkStatus() {
+    try {
+      const { data } = await Api.getPaymentStatus(orderId);
+      const order = data.order;
+      if (data.status === 'paid') renderPaid(order);
+      else if (data.status === 'expired') renderExpired();
+      else renderPending(order);
+    } catch (err) {
+      document.getElementById('paymentContent').innerHTML = `<p class="empty-state">Gagal memuat status: ${err.message}</p>`;
+    }
+  }
+
+  async function initPayment() {
+    if (!orderId) {
+      document.getElementById('paymentContent').innerHTML = '<p class="empty-state">Order tidak ditemukan.</p>';
+      return;
+    }
+    try {
+      const { data: order } = await Api.createQrisPayment(orderId);
+      renderPending(order);
+      pollTimer = setInterval(checkStatus, 3000);
+    } catch (err) {
+      document.getElementById('paymentContent').innerHTML = `<p class="empty-state">Gagal membuat pembayaran: ${err.message}</p>`;
+    }
+  }
+
+  initPayment();
+</script>
+</body>
+</html>

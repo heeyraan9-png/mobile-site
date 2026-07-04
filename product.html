@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Detail Produk</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Detail Produk</h1>
+    <a href="cart.html" class="cart-icon-wrap">
+      🛒
+      <span class="cart-badge" style="display:none;">0</span>
+    </a>
+  </div>
+
+  <div class="content" id="productDetail">
+    <p style="text-align:center; color:#6b7280;">Memuat...</p>
+  </div>
+
+  <div class="bottom-action">
+    <button class="btn btn-primary" id="addToCartBtn">Tambah ke Keranjang</button>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/api.js"></script>
+<script>
+  let currentProduct = null;
+  let qty = 1;
+
+  async function loadProduct() {
+    const id = getQueryParam('id');
+    const container = document.getElementById('productDetail');
+    if (!id) {
+      container.innerHTML = '<p class="empty-state">Produk tidak ditemukan.</p>';
+      return;
+    }
+    try {
+      const { data } = await Api.getProduct(id);
+      currentProduct = data;
+      container.innerHTML = `
+        <div class="detail-emoji">${data.image}</div>
+        <div class="detail-name">${data.name}</div>
+        <div class="detail-price">${formatRupiah(data.price)}</div>
+        <div class="detail-desc">${data.description || '-'}</div>
+        <div class="detail-desc">Stok tersedia: ${data.stock}</div>
+        <div class="qty-selector">
+          <button id="qtyMinus">-</button>
+          <span id="qtyValue">1</span>
+          <button id="qtyPlus">+</button>
+        </div>
+      `;
+      document.getElementById('qtyMinus').onclick = () => {
+        if (qty > 1) qty--;
+        document.getElementById('qtyValue').textContent = qty;
+      };
+      document.getElementById('qtyPlus').onclick = () => {
+        if (qty < data.stock) qty++;
+        document.getElementById('qtyValue').textContent = qty;
+      };
+      const addBtn = document.getElementById('addToCartBtn');
+      if (data.stock <= 0) {
+        addBtn.disabled = true;
+        addBtn.textContent = 'Stok Habis';
+      }
+    } catch (err) {
+      container.innerHTML = `<p class="empty-state">Gagal memuat produk: ${err.message}</p>`;
+    }
+  }
+
+  document.getElementById('addToCartBtn').addEventListener('click', () => {
+    if (!currentProduct) return;
+    addToCart(currentProduct, qty);
+    showToast('Ditambahkan ke keranjang');
+  });
+
+  loadProduct();
+</script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Toko Demo QRIS</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>🛍️ Toko Demo QRIS</h1>
+    <a href="cart.html" class="cart-icon-wrap">
+      🛒
+      <span class="cart-badge" style="display:none;">0</span>
+    </a>
+  </div>
+
+  <div class="content">
+    <div id="productGrid" class="product-grid">
+      <!-- Produk dimuat via JS -->
+    </div>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="index.html" class="active"><span class="icon">🏠</span>Home</a>
+    <a href="cart.html"><span class="icon">🛒</span>Keranjang</a>
+    <a href="admin.html"><span class="icon">⚙️</span>Admin</a>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/api.js"></script>
+<script>
+  async function loadProducts() {
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = '<p style="grid-column: span 2; text-align:center; color:#6b7280;">Memuat produk...</p>';
+    try {
+      const { data } = await Api.getProducts();
+      if (!data.length) {
+        grid.innerHTML = '<p style="grid-column: span 2;" class="empty-state">Belum ada produk. Tambahkan lewat halaman Admin.</p>';
+        return;
+      }
+      grid.innerHTML = data.map((p) => `
+        <a class="product-card" href="product.html?id=${p.id}">
+          <div class="emoji">${p.image}</div>
+          <div class="name">${p.name}</div>
+          <div class="price">${formatRupiah(p.price)}</div>
+          <div class="stock">Stok: ${p.stock}</div>
+        </a>
+      `).join('');
+    } catch (err) {
+      grid.innerHTML = `<p style="grid-column: span 2;" class="empty-state">Gagal memuat produk: ${err.message}</p>`;
+    }
+  }
+  loadProducts();
+</script>
+</body>
+</html>

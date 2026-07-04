@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+<title>Keranjang</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <button class="back-btn" onclick="window.location.href='index.html'">←</button>
+    <h1>Keranjang Saya</h1>
+    <span style="width:34px;"></span>
+  </div>
+
+  <div class="content">
+    <div id="cartList"></div>
+    <div id="summaryBox"></div>
+  </div>
+
+  <div class="bottom-action" id="checkoutBar" style="display:none;">
+    <button class="btn btn-primary" onclick="window.location.href='checkout.html'">Checkout</button>
+  </div>
+
+  <div class="bottom-nav">
+    <a href="index.html"><span class="icon">🏠</span>Home</a>
+    <a href="cart.html" class="active"><span class="icon">🛒</span>Keranjang</a>
+    <a href="admin.html"><span class="icon">⚙️</span>Admin</a>
+  </div>
+</div>
+
+<script src="js/main.js"></script>
+<script src="js/api.js"></script>
+<script>
+  function renderCart() {
+    const cart = getCart();
+    const listEl = document.getElementById('cartList');
+    const summaryEl = document.getElementById('summaryBox');
+    const checkoutBar = document.getElementById('checkoutBar');
+
+    if (!cart.length) {
+      listEl.innerHTML = '<div class="empty-state">🛒<br/>Keranjang kamu masih kosong.</div>';
+      summaryEl.innerHTML = '';
+      checkoutBar.style.display = 'none';
+      return;
+    }
+
+    listEl.innerHTML = cart.map((item) => `
+      <div class="cart-item" data-id="${item.productId}">
+        <div class="emoji">${item.image}</div>
+        <div class="info">
+          <div class="name">${item.name}</div>
+          <div class="price">${formatRupiah(item.price)}</div>
+          <button class="remove-link" data-remove="${item.productId}">Hapus</button>
+        </div>
+        <div class="qty-controls">
+          <button data-decr="${item.productId}">-</button>
+          <span>${item.qty}</span>
+          <button data-incr="${item.productId}">+</button>
+        </div>
+      </div>
+    `).join('');
+
+    summaryEl.innerHTML = `
+      <div class="summary-box">
+        <div class="summary-row total">
+          <span>Total</span>
+          <span>${formatRupiah(cartTotal())}</span>
+        </div>
+      </div>
+    `;
+    checkoutBar.style.display = 'block';
+
+    listEl.querySelectorAll('[data-incr]').forEach((btn) => {
+      btn.onclick = () => {
+        const id = btn.dataset.incr;
+        const item = getCart().find((i) => i.productId === id);
+        updateCartItemQty(id, item.qty + 1);
+        renderCart();
+      };
+    });
+    listEl.querySelectorAll('[data-decr]').forEach((btn) => {
+      btn.onclick = () => {
+        const id = btn.dataset.decr;
+        const item = getCart().find((i) => i.productId === id);
+        updateCartItemQty(id, item.qty - 1);
+        renderCart();
+      };
+    });
+    listEl.querySelectorAll('[data-remove]').forEach((btn) => {
+      btn.onclick = () => {
+        removeFromCart(btn.dataset.remove);
+        renderCart();
+      };
+    });
+  }
+
+  renderCart();
+</script>
+</body>
+</html>
